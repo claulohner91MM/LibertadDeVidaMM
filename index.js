@@ -5,20 +5,34 @@ const OpenAI = require("openai");
 
 const app = express();
 
-app.use((req, res, next) => {
-  console.log(`Solicitud recibida: ${req.method} ${req.path}`);
-  next();
-});
+app.disable("x-powered-by");
 
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use(
-  express.json({
+  express.text({
+    type: ["text/plain", "application/octet-stream"],
     limit: "1mb",
-    type: ["application/json", "application/*+json"],
   })
 );
 
-app.use(express.urlencoded({ extended: true, limit: "1mb" }));
-app.use(express.text({ type: "text/plain", limit: "1mb" }));
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, POST, OPTIONS"
+  );
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization"
+  );
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+
+  return next();
+});
 
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({
@@ -29,50 +43,53 @@ const openai = process.env.OPENAI_API_KEY
 const PORT = process.env.PORT || 8080;
 
 const SYSTEM_PROMPT = `
-Eres la asistente virtual de Mamá Segura y respondes por WhatsApp preguntas sobre el producto digital "Kit Mamá Segura".
+Eres la asesora virtual de Mamá Segura. Respondes por WhatsApp preguntas sobre el producto digital "Kit Mamá Segura".
 
-Responde de forma NATURAL, BREVE, CÁLIDA, CLARA y HUMANA, como una persona real que acompaña a una mamá primeriza con empatía.
+Tu trabajo es responder de forma NATURAL, BREVE, CÁLIDA, CLARA y HUMANA, como una persona real que acompaña a una mamá primeriza con empatía.
 
-REGLAS:
+IMPORTANTE:
 - Nunca suenes robótica.
+- Varía ligeramente la redacción sin alterar el significado de la información oficial.
 - Responde máximo en 1 o 2 párrafos cortos.
 - No saludes al inicio de cada respuesta.
 - No uses "Hola".
+- No hagas múltiples preguntas.
 - No hagas preguntas abiertas innecesarias.
 - No presiones a la persona.
 - No inventes información.
-- Utiliza exclusivamente la información oficial de esta base de conocimiento.
-- No cambies precios, métodos de pago, tiempos de entrega, políticas ni garantías.
+- Utiliza exclusivamente la información oficial incluida aquí.
+- No cambies precios, métodos de pago, tiempos de entrega, condiciones, garantías ni políticas.
 - No agregues productos, bonos, descuentos, promociones o beneficios no autorizados.
 - No diagnostiques ni indiques tratamientos médicos.
 - No contradigas las respuestas oficiales.
-- Si no existe información suficiente, indica naturalmente que necesitas confirmar ese dato con el equipo de Mamá Segura.
+- Si no existe información suficiente, indica de forma natural que necesitas confirmar ese dato con el equipo de Mamá Segura.
 
-INFORMACIÓN OFICIAL:
+INFORMACIÓN REAL Y AUTORIZADA:
 - Negocio: Mamá Segura.
 - Producto: Kit Mamá Segura.
 - Tipo de producto: digital.
 - Es una guía integral que acompaña a una mamá primeriza desde el nacimiento hasta los primeros años del bebé.
 - Ayuda a criar con más tranquilidad, seguridad y confianza.
-- Ayuda frente a la desinformación, la sobreinformación, las dudas frecuentes, las inseguridades y los miedos de las distintas etapas del bebé.
+- Ayuda frente a la desinformación, la sobreinformación, las dudas frecuentes, las inseguridades y los miedos en las distintas etapas del bebé.
 - Busca que la mamá se sienta acompañada, validada e informada y que pueda recuperar la sensación de control.
-- Entrega: archivos PDF descargables mediante un enlace.
-- Tiempo de entrega: inmediatamente después de confirmar el pago; demora solo unos segundos.
+- Forma de entrega: archivos PDF descargables mediante un enlace.
+- Tiempo de entrega: inmediatamente después de confirmar el pago. La entrega demora solo unos segundos.
 - Contenido: 13 documentos PDF descargables con guías prácticas de maternidad, checklists para organizarse, registros de sueño, lactancia y actividades, orientación sobre alimentación y crecimiento, y recursos para el bienestar de la mamá.
-- Edad: bebés y niños desde los 0 hasta los 6 años.
+- Edad: materiales para acompañar a bebés y niños desde los 0 hasta los 6 años.
 - Precio: 89 bolivianos.
 - Métodos de pago: transferencia bancaria, código QR y depósito o pago por Yape.
-- Uso: las guías pueden consultarse desde el celular; los checklists deben imprimirse para utilizarlos correctamente.
-- Soporte: si existe dificultad para abrir o descargar los archivos, la persona debe contactar al equipo y se le compartirán nuevamente.
-- Alcance: es una guía de apoyo. No reemplaza la orientación, evaluación ni tratamiento de un pediatra o profesional de salud cuando exista una situación que requiera atención especializada.
-- Devoluciones: no tiene devolución porque, una vez confirmado el pago, se entrega inmediatamente el material digital.
+- Uso: las guías pueden consultarse desde el celular. Los checklists deben imprimirse para utilizarlos correctamente.
+- Soporte: si existe dificultad para abrir o descargar los archivos, la persona debe contactar al equipo y los archivos se compartirán nuevamente.
+- Alcance: el Kit Mamá Segura es una guía de apoyo para acompañar a la mamá durante una etapa muy demandante. No reemplaza la orientación, evaluación ni tratamiento de un pediatra o profesional de salud cuando exista una situación que requiera atención especializada.
+- Devoluciones: el Kit Mamá Segura no tiene devolución porque, una vez confirmado el pago, se entrega inmediatamente el material digital.
 - Garantía: acceso de por vida a los archivos recibidos.
 
 OBJETIVO:
 - Resolver cada duda de forma breve, clara y útil.
 - Transmitir acompañamiento, seguridad y confianza.
-- Agregar un cierre comercial solamente cuando exista intención clara de compra o pago.
-- No agregar un cierre comercial en consultas de soporte, salud, devoluciones, garantías o situaciones posteriores al pago.
+- Agregar un cierre comercial únicamente cuando la persona pregunte por precio, métodos de pago o manifieste una intención clara de comprar.
+- En ese caso, invitar suavemente a elegir transferencia bancaria, código QR o depósito o pago por Yape.
+- No agregar cierres comerciales en consultas de soporte, salud, devoluciones, garantías ni después de que la persona ya realizó el pago.
 `;
 
 function normalizarTexto(texto) {
@@ -86,20 +103,37 @@ function normalizarTexto(texto) {
 }
 
 function elegirAleatoria(opciones) {
-  return opciones[Math.floor(Math.random() * opciones.length)];
+  return opciones[
+    Math.floor(Math.random() * opciones.length)
+  ];
 }
 
 function limpiarRespuesta(texto) {
   texto = String(texto || "").trim();
 
   texto = texto
-    .replace(/^¡?\s*hola\s*[😊🙏❤️✨💛,.!]*\s*/gi, "")
-    .replace(/^gracias por preguntar\s*[😊🙏❤️✨💛,.!]*\s*/gi, "")
-    .replace(/^buenos d[ií]as\s*[😊🙏❤️✨💛,.!]*\s*/gi, "")
-    .replace(/^buenas tardes\s*[😊🙏❤️✨💛,.!]*\s*/gi, "")
-    .replace(/^buenas noches\s*[😊🙏❤️✨💛,.!]*\s*/gi, "");
+    .replace(
+      /^¡?\s*hola\s*[😊🙏❤️✨💛,.!]*\s*/gi,
+      ""
+    )
+    .replace(
+      /^gracias por preguntar\s*[😊🙏❤️✨💛,.!]*\s*/gi,
+      ""
+    )
+    .replace(
+      /^buenos d[ií]as\s*[😊🙏❤️✨💛,.!]*\s*/gi,
+      ""
+    )
+    .replace(
+      /^buenas tardes\s*[😊🙏❤️✨💛,.!]*\s*/gi,
+      ""
+    )
+    .replace(
+      /^buenas noches\s*[😊🙏❤️✨💛,.!]*\s*/gi,
+      ""
+    );
 
-  return texto
+  texto = texto
     .replace(
       /¿[^?]*(quieres|te interesa|te gustaría|te gustaria|te cuento|te explico|te ayudo|puedo ayudarte|hay algo más|hay algo mas)[^?]*\?/gi,
       ""
@@ -107,12 +141,8 @@ function limpiarRespuesta(texto) {
     .replace(/[ \t]{2,}/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-}
 
-function incluyeAlguna(textoNormalizado, opciones) {
-  return opciones.some((opcion) =>
-    textoNormalizado.includes(normalizarTexto(opcion))
-  );
+  return texto;
 }
 
 function cierrePago() {
@@ -128,42 +158,41 @@ function cierrePago() {
 }
 
 function debeAgregarCierre(textoNormalizado) {
-  const contextoSinCierre = incluyeAlguna(textoNormalizado, [
-    "ya pague",
-    "pago realizado",
-    "comprobante enviado",
-    "envie el comprobante",
-    "no puedo abrir",
-    "no puedo descargar",
-    "problema",
-    "dificultad",
-    "devolucion",
-    "reembolso",
-    "garantia",
-    "pediatra",
-    "medico",
-    "profesional de salud",
-  ]);
+  const contextoSinCierre =
+    textoNormalizado.includes("ya pague") ||
+    textoNormalizado.includes("pago realizado") ||
+    textoNormalizado.includes("comprobante enviado") ||
+    textoNormalizado.includes("envie el comprobante") ||
+    textoNormalizado.includes("no puedo abrir") ||
+    textoNormalizado.includes("no puedo descargar") ||
+    textoNormalizado.includes("problema") ||
+    textoNormalizado.includes("dificultad") ||
+    textoNormalizado.includes("devolucion") ||
+    textoNormalizado.includes("reembolso") ||
+    textoNormalizado.includes("garantia") ||
+    textoNormalizado.includes("pediatra") ||
+    textoNormalizado.includes("medico") ||
+    textoNormalizado.includes("profesional de salud");
 
   if (contextoSinCierre) {
     return false;
   }
 
-  return incluyeAlguna(textoNormalizado, [
-    "precio",
-    "costo",
-    "cuanto cuesta",
-    "comprar",
-    "quiero comprar",
-    "como pago",
-    "pagar",
-    "metodo de pago",
-    "metodos de pago",
-    "transferencia",
-    "codigo qr",
-    "yape",
-    "deposito",
-  ]);
+  return (
+    textoNormalizado.includes("precio") ||
+    textoNormalizado.includes("costo") ||
+    textoNormalizado.includes("cuanto cuesta") ||
+    textoNormalizado.includes("comprar") ||
+    textoNormalizado.includes("quiero comprar") ||
+    textoNormalizado.includes("como pago") ||
+    textoNormalizado.includes("pagar") ||
+    textoNormalizado.includes("metodo de pago") ||
+    textoNormalizado.includes("metodos de pago") ||
+    textoNormalizado.includes("transferencia") ||
+    textoNormalizado.includes("codigo qr") ||
+    textoNormalizado.includes("yape") ||
+    textoNormalizado.includes("deposito")
+  );
 }
 
 function agregarCierre(texto, textoNormalizado) {
@@ -181,28 +210,35 @@ function agregarCierre(texto, textoNormalizado) {
 }
 
 function respuestaDirecta(textoNormalizado) {
-  const problemaDescarga =
-    incluyeAlguna(textoNormalizado, [
-      "no puedo abrir",
-      "no abre",
-      "no puedo descargar",
-      "no descarga",
-      "problema con el archivo",
-      "problema con los archivos",
-      "problema con el enlace",
-      "problema con el link",
-      "dificultad para abrir",
-      "dificultad para descargar",
-    ]) ||
+  if (
+    textoNormalizado.includes("no puedo abrir") ||
+    textoNormalizado.includes("no abre") ||
+    textoNormalizado.includes("no puedo descargar") ||
+    textoNormalizado.includes("no descarga") ||
+    textoNormalizado.includes(
+      "problema con el archivo"
+    ) ||
+    textoNormalizado.includes(
+      "problema con los archivos"
+    ) ||
+    textoNormalizado.includes(
+      "problema con el enlace"
+    ) ||
+    textoNormalizado.includes(
+      "problema con el link"
+    ) ||
+    textoNormalizado.includes(
+      "dificultad para abrir"
+    ) ||
+    textoNormalizado.includes(
+      "dificultad para descargar"
+    ) ||
     (textoNormalizado.includes("problema") &&
-      incluyeAlguna(textoNormalizado, [
-        "archivo",
-        "descarga",
-        "enlace",
-        "link",
-      ]));
-
-  if (problemaDescarga) {
+      (textoNormalizado.includes("archivo") ||
+        textoNormalizado.includes("descarga") ||
+        textoNormalizado.includes("enlace") ||
+        textoNormalizado.includes("link")))
+  ) {
     const respuestas = [
       `Si tienes alguna dificultad para abrir o descargar los archivos, contáctanos y te los compartimos nuevamente.`,
 
@@ -217,27 +253,29 @@ function respuestaDirecta(textoNormalizado) {
     };
   }
 
-  const consultaSalud =
-    incluyeAlguna(textoNormalizado, [
-      "pediatra",
-      "medico",
-      "doctor",
-      "profesional de salud",
-      "consulta medica",
-      "reemplaza al pediatra",
-      "reemplaza una consulta",
-      "tratamiento",
-      "evaluacion medica",
-      "reemplaza",
-    ]) ||
+  if (
+    textoNormalizado.includes("pediatra") ||
+    textoNormalizado.includes("medico") ||
+    textoNormalizado.includes("doctor") ||
+    textoNormalizado.includes(
+      "profesional de salud"
+    ) ||
+    textoNormalizado.includes("consulta medica") ||
+    textoNormalizado.includes(
+      "reemplaza al pediatra"
+    ) ||
+    textoNormalizado.includes(
+      "reemplaza una consulta"
+    ) ||
+    textoNormalizado.includes("tratamiento") ||
+    textoNormalizado.includes(
+      "evaluacion medica"
+    ) ||
     (textoNormalizado.includes("consulta") &&
-      incluyeAlguna(textoNormalizado, [
-        "salud",
-        "pediatra",
-        "medico",
-      ]));
-
-  if (consultaSalud) {
+      (textoNormalizado.includes("salud") ||
+        textoNormalizado.includes("pediatra") ||
+        textoNormalizado.includes("medico")))
+  ) {
     const respuestas = [
       `El Kit Mamá Segura es una guía de apoyo para acompañar a la mamá durante una etapa muy demandante. No reemplaza la orientación, evaluación ni tratamiento de un pediatra o profesional de salud cuando exista una situación que requiera atención especializada.`,
 
@@ -252,25 +290,22 @@ function respuestaDirecta(textoNormalizado) {
     };
   }
 
-  const devolucionGarantia =
-    incluyeAlguna(textoNormalizado, [
-      "devolucion",
-      "devolver",
-      "reembolso",
-      "garantia",
-      "cambio",
-      "cambios",
-      "acceso de por vida",
-      "de por vida",
-    ]) ||
+  if (
+    textoNormalizado.includes("devolucion") ||
+    textoNormalizado.includes("devolver") ||
+    textoNormalizado.includes("reembolso") ||
+    textoNormalizado.includes("garantia") ||
+    textoNormalizado.includes("cambio") ||
+    textoNormalizado.includes("cambios") ||
+    textoNormalizado.includes(
+      "acceso de por vida"
+    ) ||
+    textoNormalizado.includes("de por vida") ||
     (textoNormalizado.includes("entrega") &&
-      incluyeAlguna(textoNormalizado, [
-        "devolucion",
-        "reembolso",
-        "garantia",
-      ]));
-
-  if (devolucionGarantia) {
+      (textoNormalizado.includes("devolucion") ||
+        textoNormalizado.includes("reembolso") ||
+        textoNormalizado.includes("garantia")))
+  ) {
     const respuestas = [
       `El Kit Mamá Segura no tiene devolución, ya que una vez confirmado el pago se entrega inmediatamente el material digital. La garantía de tu compra es que tendrás acceso de por vida a los archivos recibidos.`,
 
@@ -285,27 +320,24 @@ function respuestaDirecta(textoNormalizado) {
     };
   }
 
-  const usoMateriales =
-    incluyeAlguna(textoNormalizado, [
-      "imprimir",
-      "impresion",
-      "desde mi celular",
-      "en mi celular",
-      "usar desde el celular",
-      "puedo usar",
-      "como usar",
-      "checklist",
-      "checklists",
-    ]) ||
+  if (
+    textoNormalizado.includes("imprimir") ||
+    textoNormalizado.includes("impresion") ||
+    textoNormalizado.includes("desde mi celular") ||
+    textoNormalizado.includes("en mi celular") ||
+    textoNormalizado.includes(
+      "usar desde el celular"
+    ) ||
+    textoNormalizado.includes("puedo usar") ||
+    textoNormalizado.includes("como usar") ||
+    textoNormalizado.includes("checklist") ||
+    textoNormalizado.includes("checklists") ||
     (textoNormalizado.includes("usar") &&
-      incluyeAlguna(textoNormalizado, [
-        "guia",
-        "guias",
-        "material",
-        "celular",
-      ]));
-
-  if (usoMateriales) {
+      (textoNormalizado.includes("guia") ||
+        textoNormalizado.includes("guias") ||
+        textoNormalizado.includes("material") ||
+        textoNormalizado.includes("celular")))
+  ) {
     const respuestas = [
       `Puedes consultar las guías directamente desde tu celular. Los checklists sí deben imprimirse para poder utilizarlos correctamente.`,
 
@@ -320,32 +352,41 @@ function respuestaDirecta(textoNormalizado) {
     };
   }
 
-  const tiempoEnvio =
-    incluyeAlguna(textoNormalizado, [
-      "cuanto tarda",
-      "cuanto tiempo tarda",
-      "cuanto demora",
-      "cuando llega",
-      "tiempo de entrega",
-      "tiempo de envio",
-      "despues del comprobante",
-      "envie el comprobante",
-      "enviar el comprobante",
-      "confirmacion del pago",
-      "confirmar el pago",
-      "inmediatamente",
-      "segundos",
-    ]) ||
+  if (
+    textoNormalizado.includes("cuanto tarda") ||
+    textoNormalizado.includes(
+      "cuanto tiempo tarda"
+    ) ||
+    textoNormalizado.includes("cuanto demora") ||
+    textoNormalizado.includes("cuando llega") ||
+    textoNormalizado.includes(
+      "tiempo de entrega"
+    ) ||
+    textoNormalizado.includes("tiempo de envio") ||
+    textoNormalizado.includes(
+      "despues del comprobante"
+    ) ||
+    textoNormalizado.includes(
+      "envie el comprobante"
+    ) ||
+    textoNormalizado.includes(
+      "enviar el comprobante"
+    ) ||
+    textoNormalizado.includes(
+      "confirmacion del pago"
+    ) ||
+    textoNormalizado.includes(
+      "confirmar el pago"
+    ) ||
+    textoNormalizado.includes("inmediatamente") ||
+    textoNormalizado.includes("segundos") ||
     (textoNormalizado.includes("envio") &&
-      incluyeAlguna(textoNormalizado, [
-        "tiempo",
-        "tarda",
-        "demora",
-        "pago",
-        "comprobante",
-      ]));
-
-  if (tiempoEnvio) {
+      (textoNormalizado.includes("tiempo") ||
+        textoNormalizado.includes("tarda") ||
+        textoNormalizado.includes("demora") ||
+        textoNormalizado.includes("pago") ||
+        textoNormalizado.includes("comprobante")))
+  ) {
     const respuestas = [
       `Recibes tu Kit Mamá Segura inmediatamente después de que confirmamos el pago. La entrega demora solo unos segundos.`,
 
@@ -361,17 +402,23 @@ function respuestaDirecta(textoNormalizado) {
   }
 
   if (
-    incluyeAlguna(textoNormalizado, [
-      "contenido",
-      "que incluye",
-      "que trae",
-      "13 documentos",
-      "guias practicas",
-      "registros de sueno",
-      "registros de lactancia",
-      "alimentacion y crecimiento",
-      "bienestar como mama",
-    ])
+    textoNormalizado.includes("contenido") ||
+    textoNormalizado.includes("que incluye") ||
+    textoNormalizado.includes("que trae") ||
+    textoNormalizado.includes("13 documentos") ||
+    textoNormalizado.includes("guias practicas") ||
+    textoNormalizado.includes(
+      "registros de sueno"
+    ) ||
+    textoNormalizado.includes(
+      "registros de lactancia"
+    ) ||
+    textoNormalizado.includes(
+      "alimentacion y crecimiento"
+    ) ||
+    textoNormalizado.includes(
+      "bienestar como mama"
+    )
   ) {
     const respuestas = [
       `Recibes 13 documentos PDF descargables que incluyen guías prácticas de maternidad, checklists para organizarte, registros de sueño, lactancia y actividades, orientación sobre alimentación y crecimiento, y recursos para tu bienestar como mamá.`,
@@ -387,27 +434,22 @@ function respuestaDirecta(textoNormalizado) {
     };
   }
 
-  const edadBebe =
-    incluyeAlguna(textoNormalizado, [
-      "para que edad",
-      "que edad",
-      "desde que edad",
-      "hasta que edad",
-      "edades",
-      "0 a 6 anos",
-      "seis anos",
-      "recien nacido",
-      "edad del bebe",
-    ]) ||
+  if (
+    textoNormalizado.includes("para que edad") ||
+    textoNormalizado.includes("que edad") ||
+    textoNormalizado.includes("desde que edad") ||
+    textoNormalizado.includes("hasta que edad") ||
+    textoNormalizado.includes("edades") ||
+    textoNormalizado.includes("0 a 6 anos") ||
+    textoNormalizado.includes("seis anos") ||
+    textoNormalizado.includes("recien nacido") ||
+    textoNormalizado.includes("edad del bebe") ||
     (textoNormalizado.includes("bebe") &&
-      incluyeAlguna(textoNormalizado, [
-        "edad",
-        "anos",
-        "meses",
-        "sirve",
-      ]));
-
-  if (edadBebe) {
+      (textoNormalizado.includes("edad") ||
+        textoNormalizado.includes("anos") ||
+        textoNormalizado.includes("meses") ||
+        textoNormalizado.includes("sirve")))
+  ) {
     const respuestas = [
       `El Kit Mamá Segura incluye materiales para acompañar a bebés y niños desde los 0 hasta los 6 años.`,
 
@@ -423,25 +465,25 @@ function respuestaDirecta(textoNormalizado) {
   }
 
   if (
-    incluyeAlguna(textoNormalizado, [
-      "precio",
-      "costo",
-      "cuanto cuesta",
-      "cuesta",
-      "vale",
-      "89 bolivianos",
-      "metodo de pago",
-      "metodos de pago",
-      "transferencia",
-      "codigo qr",
-      "pago por qr",
-      "yape",
-      "deposito",
-      "como pago",
-      "comprar",
-      "quiero comprar",
-      "pagar",
-    ])
+    textoNormalizado.includes("precio") ||
+    textoNormalizado.includes("costo") ||
+    textoNormalizado.includes("cuanto cuesta") ||
+    textoNormalizado.includes("cuesta") ||
+    textoNormalizado.includes("vale") ||
+    textoNormalizado.includes("89 bolivianos") ||
+    textoNormalizado.includes("metodo de pago") ||
+    textoNormalizado.includes(
+      "metodos de pago"
+    ) ||
+    textoNormalizado.includes("transferencia") ||
+    textoNormalizado.includes("codigo qr") ||
+    textoNormalizado.includes("pago por qr") ||
+    textoNormalizado.includes("yape") ||
+    textoNormalizado.includes("deposito") ||
+    textoNormalizado.includes("como pago") ||
+    textoNormalizado.includes("comprar") ||
+    textoNormalizado.includes("quiero comprar") ||
+    textoNormalizado.includes("pagar")
   ) {
     const respuestas = [
       `El Kit Mamá Segura cuesta 89 bolivianos. Aceptamos pagos mediante transferencia bancaria, código QR y depósito o pago por Yape.`,
@@ -460,29 +502,30 @@ function respuestaDirecta(textoNormalizado) {
     };
   }
 
-  const productoDigital =
-    incluyeAlguna(textoNormalizado, [
-      "es fisico",
-      "es digital",
-      "producto fisico",
-      "producto digital",
-      "formato fisico",
-      "formato digital",
-      "material fisico",
-      "material digital",
-      "impreso",
-      "se descarga",
-      "es descarga",
-    ]) ||
+  if (
+    textoNormalizado.includes("es fisico") ||
+    textoNormalizado.includes("es digital") ||
+    textoNormalizado.includes("producto fisico") ||
+    textoNormalizado.includes(
+      "producto digital"
+    ) ||
+    textoNormalizado.includes("formato fisico") ||
+    textoNormalizado.includes(
+      "formato digital"
+    ) ||
+    textoNormalizado.includes("material fisico") ||
+    textoNormalizado.includes(
+      "material digital"
+    ) ||
+    textoNormalizado.includes("impreso") ||
+    textoNormalizado.includes("se descarga") ||
+    textoNormalizado.includes("es descarga") ||
     (textoNormalizado.includes("descarga") &&
-      incluyeAlguna(textoNormalizado, [
-        "producto",
-        "formato",
-        "digital",
-        "pdf",
-      ]));
-
-  if (productoDigital) {
+      (textoNormalizado.includes("producto") ||
+        textoNormalizado.includes("formato") ||
+        textoNormalizado.includes("digital") ||
+        textoNormalizado.includes("pdf")))
+  ) {
     const respuestas = [
       `El Kit Mamá Segura es un producto digital. Recibirás los materiales en archivos PDF descargables mediante un enlace.`,
 
@@ -497,29 +540,26 @@ function respuestaDirecta(textoNormalizado) {
     };
   }
 
-  const reciboKit =
-    incluyeAlguna(textoNormalizado, [
-      "como recibo",
-      "como lo recibo",
-      "como recibire",
-      "forma de entrega",
-      "donde recibo",
-      "recibir el kit",
-      "me envian el kit",
-      "enlace de descarga",
-      "link de descarga",
-      "pdf descargable",
-      "recibo",
-    ]) ||
+  if (
+    textoNormalizado.includes("como recibo") ||
+    textoNormalizado.includes("como lo recibo") ||
+    textoNormalizado.includes("como recibire") ||
+    textoNormalizado.includes("forma de entrega") ||
+    textoNormalizado.includes("donde recibo") ||
+    textoNormalizado.includes("recibir el kit") ||
+    textoNormalizado.includes("me envian el kit") ||
+    textoNormalizado.includes(
+      "enlace de descarga"
+    ) ||
+    textoNormalizado.includes("link de descarga") ||
+    textoNormalizado.includes("pdf descargable") ||
+    textoNormalizado.includes("recibo") ||
     (textoNormalizado.includes("entrega") &&
-      incluyeAlguna(textoNormalizado, [
-        "kit",
-        "pdf",
-        "enlace",
-        "link",
-      ]));
-
-  if (reciboKit) {
+      (textoNormalizado.includes("kit") ||
+        textoNormalizado.includes("pdf") ||
+        textoNormalizado.includes("enlace") ||
+        textoNormalizado.includes("link")))
+  ) {
     const respuestas = [
       `Recibes tu Kit Mamá Segura en archivos PDF descargables mediante un enlace.`,
 
@@ -537,73 +577,152 @@ function respuestaDirecta(textoNormalizado) {
   return null;
 }
 
-function extraerTextoDelBody(body) {
-  if (typeof body === "string") {
-    const textoPlano = body.trim();
+function extraerTextoDeObjeto(
+  valor,
+  profundidad = 0
+) {
+  if (
+    profundidad > 4 ||
+    valor === null ||
+    valor === undefined
+  ) {
+    return "";
+  }
 
-    if (!textoPlano) {
+  if (typeof valor === "string") {
+    const texto = valor.trim();
+
+    if (!texto) {
       return "";
     }
 
     try {
-      return extraerTextoDelBody(JSON.parse(textoPlano));
+      const convertido = JSON.parse(texto);
+
+      return (
+        extraerTextoDeObjeto(
+          convertido,
+          profundidad + 1
+        ) || texto
+      );
     } catch (error) {
-      return textoPlano;
+      const parametros = new URLSearchParams(texto);
+
+      const claves = [
+        "texto",
+        "mensaje",
+        "message",
+        "text",
+        "pregunta",
+        "question",
+        "input",
+        "user_input",
+        "last_text_input",
+      ];
+
+      for (const clave of claves) {
+        const encontrado = parametros.get(clave);
+
+        if (encontrado && encontrado.trim()) {
+          return encontrado.trim();
+        }
+      }
+
+      return texto;
     }
   }
 
-  if (!body || typeof body !== "object") {
+  if (typeof valor !== "object") {
     return "";
   }
 
-  const candidatos = [
-    body.texto,
-    body.mensaje,
-    body.message,
-    body.text,
-    body.pregunta,
-    body.user_message,
-    body.userMessage,
-    body.last_text_input,
-    body.lastTextInput,
-    body?.data?.texto,
-    body?.data?.mensaje,
-    body?.data?.message,
-    body?.data?.text,
-    body?.payload?.texto,
-    body?.payload?.mensaje,
-    body?.payload?.message,
-    body?.payload?.text,
-    body?.custom_fields?.texto,
-    body?.custom_fields?.mensaje,
+  const clavesPreferidas = [
+    "texto",
+    "mensaje",
+    "message",
+    "text",
+    "pregunta",
+    "question",
+    "input",
+    "user_input",
+    "userMessage",
+    "last_text_input",
+    "lastTextInput",
   ];
 
-  const encontrado = candidatos.find(
-    (valor) => typeof valor === "string" && valor.trim()
-  );
+  for (const clave of clavesPreferidas) {
+    if (
+      Object.prototype.hasOwnProperty.call(
+        valor,
+        clave
+      )
+    ) {
+      const encontrado = extraerTextoDeObjeto(
+        valor[clave],
+        profundidad + 1
+      );
 
-  return encontrado ? encontrado.trim() : "";
+      if (encontrado) {
+        return encontrado;
+      }
+    }
+  }
+
+  const contenedores = [
+    "data",
+    "body",
+    "payload",
+    "request",
+    "fields",
+    "custom_fields",
+  ];
+
+  for (const clave of contenedores) {
+    if (
+      Object.prototype.hasOwnProperty.call(
+        valor,
+        clave
+      )
+    ) {
+      const encontrado = extraerTextoDeObjeto(
+        valor[clave],
+        profundidad + 1
+      );
+
+      if (encontrado) {
+        return encontrado;
+      }
+    }
+  }
+
+  return "";
+}
+
+function obtenerMensaje(req) {
+  return (
+    extraerTextoDeObjeto(req.body) ||
+    extraerTextoDeObjeto(req.query) ||
+    ""
+  ).trim();
 }
 
 app.get("/", (req, res) => {
   return res.status(200).json({
     estado: "activo",
     servicio: "Agente Mamá Segura",
+    endpoint: "/mensaje",
   });
 });
 
-app.get("/mensaje", (req, res) => {
+app.get("/health", (req, res) => {
   return res.status(200).json({
-    estado: "activo",
-    endpoint: "POST /mensaje",
+    estado: "ok",
   });
 });
 
-async function manejarMensaje(req, res) {
+async function procesarMensaje(req, res) {
   try {
-    const texto =
-      extraerTextoDelBody(req.body) ||
-      extraerTextoDelBody(req.query);
+    const texto = obtenerMensaje(req);
 
     console.log(
       "Mensaje recibido:",
@@ -611,8 +730,12 @@ async function manejarMensaje(req, res) {
     );
 
     if (!texto) {
-      console.log("Intencion detectada: mensaje_vacio");
-      console.log("Respuesta enviada: mensaje_vacio");
+      console.log(
+        "Intencion detectada: mensaje_vacio"
+      );
+      console.log(
+        "Respuesta enviada: mensaje_vacio"
+      );
 
       return res.status(200).json({
         respuesta:
@@ -620,22 +743,34 @@ async function manejarMensaje(req, res) {
       });
     }
 
-    const textoNormalizado = normalizarTexto(texto);
-    const directa = respuestaDirecta(textoNormalizado);
+    const textoNormalizado =
+      normalizarTexto(texto);
+
+    const directa =
+      respuestaDirecta(textoNormalizado);
 
     if (directa) {
-      console.log("Intencion detectada:", directa.intencion);
-      console.log("Respuesta enviada: base_conocimiento");
+      console.log(
+        "Intencion detectada:",
+        directa.intencion
+      );
+      console.log(
+        "Respuesta enviada: base_conocimiento"
+      );
 
       return res.status(200).json({
         respuesta: directa.respuesta,
       });
     }
 
-    console.log("Intencion detectada: consulta_abierta");
+    console.log(
+      "Intencion detectada: consulta_abierta"
+    );
 
     if (!openai) {
-      console.log("Respuesta enviada: falta_OPENAI_API_KEY");
+      console.log(
+        "Respuesta enviada: falta_OPENAI_API_KEY"
+      );
 
       return res.status(200).json({
         respuesta:
@@ -644,23 +779,27 @@ async function manejarMensaje(req, res) {
     }
 
     try {
-      const response = await openai.responses.create({
-        model: "gpt-4.1-mini",
-        temperature: 0.3,
-        input: [
-          {
-            role: "system",
-            content: SYSTEM_PROMPT,
-          },
-          {
-            role: "user",
-            content: texto,
-          },
-        ],
-      });
+      const response =
+        await openai.responses.create({
+          model: "gpt-4.1-mini",
+          temperature: 0.3,
+          input: [
+            {
+              role: "system",
+              content: SYSTEM_PROMPT,
+            },
+            {
+              role: "user",
+              content: texto,
+            },
+          ],
+        });
+
+      const respuestaIA =
+        response.output_text || "";
 
       const respuestaFinal = agregarCierre(
-        response.output_text || "",
+        respuestaIA,
         textoNormalizado
       );
 
@@ -670,7 +809,10 @@ async function manejarMensaje(req, res) {
         respuesta: respuestaFinal,
       });
     } catch (openaiError) {
-      console.error("Error de OpenAI:", openaiError.message);
+      console.error(
+        "Error de OpenAI:",
+        openaiError.message
+      );
 
       return res.status(200).json({
         respuesta:
@@ -678,7 +820,10 @@ async function manejarMensaje(req, res) {
       });
     }
   } catch (error) {
-    console.error("Error en /mensaje:", error.message);
+    console.error(
+      "Error en /mensaje:",
+      error.message
+    );
 
     return res.status(200).json({
       respuesta:
@@ -687,11 +832,23 @@ async function manejarMensaje(req, res) {
   }
 }
 
-app.post("/mensaje", manejarMensaje);
-app.post("/", manejarMensaje);
+app.post("/mensaje", procesarMensaje);
+app.get("/mensaje", procesarMensaje);
+app.post("/webhook", procesarMensaje);
+app.post("/", procesarMensaje);
+
+app.use((req, res) => {
+  return res.status(404).json({
+    respuesta:
+      "Ruta no encontrada. Utiliza POST /mensaje para enviar consultas.",
+  });
+});
 
 app.use((error, req, res, next) => {
-  console.error("Error del servidor:", error.message);
+  console.error(
+    "Error del servidor:",
+    error.message
+  );
 
   if (res.headersSent) {
     return next(error);
@@ -704,5 +861,7 @@ app.use((error, req, res, next) => {
 });
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Servidor corriendo en puerto ${PORT}`);
+  console.log(
+    `Servidor corriendo en puerto ${PORT}`
+  );
 });
